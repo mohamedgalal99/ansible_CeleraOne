@@ -1,0 +1,84 @@
+---
+- hosts: webserver
+  sudo: yes
+  vars:
+    http_port: 8008
+    web_path: /var/www
+
+  tasks:
+  - name: Add the CentOS 7 EPEL repo
+    yum: name=epel-release state=present
+
+  - name: Make dir /var/www
+    file:
+      path: /var/www
+      state: directory
+      owner: root
+      group: root
+      mode: 0755
+
+  - name: Install Nginx web server
+    yum: name=nginx state=present
+
+  - name: Deploy Nginx custom config
+    template: src=templates/nginx.j2 dest=/etc/nginx/nginx.conf
+
+  - name: Deploy First page
+    template: src=templates/local.j2 dest=/var/www/local.html
+
+  - name: Make dir /var/www/probe_local
+    file:
+      path: /var/www/probe_local
+      state: directory
+      owner: root
+      group: root
+      mode: 0755
+
+  - name: Make dir /var/www/probe_applicant
+    file:
+      path: /var/www/probe_applicant
+      state: directory
+      owner: root
+      group: root
+      mode: 0755
+
+  - name: Deploy probe_applicant page
+    template: src=templates/probe_applicant.j2 dest=/var/www/probe_applicant/local.html
+
+  - name: Link to /var/www/local.html
+    file:
+      src: /var/www/local.html
+      dest: /var/www/probe_local/local.html
+      state: link
+
+  - name: Set SELinux for /var/www
+    sefcontext:
+      target: '/var/www/*.html'
+      setype: httpd_sys_content_t
+      state: present
+
+  - name: Set SELinux for /var/www/probe_app
+    sefcontext:
+      target: '/var/www/probe_applicant/*.html'
+      setype: httpd_sys_content_t
+      state: present
+
+  - name: Start and Enable nginx
+    service: name=nginx enabled=yes state=started
+
+
+- hosts: haproxy
+  sudo: yes
+  vars:
+    web_1: 192.168.30.2 
+    web_2: 192.168.30.3
+
+  tasks:
+  - name: Install HAProxy
+    yum: name=haproxy state=present
+
+  - name: set config file
+    template: src=templates/haproxy.j2 dest=/etc/haproxy/haproxy.cfg
+
+  - name: Start HAProxy
+    service: name=haproxy enabled=yes state=started
